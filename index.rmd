@@ -1,0 +1,85 @@
+---
+title: "Practical Machine Learning:Predicting Exercise Quality"
+author: "Christian Flessner"
+date: "January 30, 2019"
+output: html_document
+---
+##Summary
+This analysis tries to predict when a subject is doing an exercise correctly based on information from various sensors placed on the subject or on the exercise equipment.  The outcome variable is called class and has 5 levels, level A inidcates the exercise has been performed correctly.
+
+##Preparation
+Loaing the necessary libraries and data
+```{r message=FALSE}
+library(data.table)
+library(caret)
+library(dplyr)
+
+setwd("C:/Users/christian.flessner/Dropbox (ZirMed)/Christian Flessner/Coursera/PracticalMachineLearning")
+train_val<-fread("pml-training.csv")
+test<-fread("pml-testing.csv")
+train_val$classe<-as.factor(train_val$classe)
+```
+
+##Preprocessing
+I first removed the first 6 columns of the data because these were not measurments.  I then did an analysis of columns that did not have much variablity and removed those as well.  Because a boosted decision tree was used I had to address empty fields, I started out by removing any column with an empty field and the model that was produced was good enough that I did not need to revisit that decision with imputing.  All columns that were removed were taken away from the test and training data sets.  The final step was to split the training data set into a training and validation set to assess the out of sample error of the model.
+
+```{r}
+#the first 6 variables are not measurements
+train_val<-train_val[,7:160]
+test<-test[,7:160]
+
+#we want to filter out variables that don't have any variability
+nsv<-nearZeroVar(train_val, saveMetrics = TRUE)
+exc<-rownames(nsv[which(nsv$nzv),])
+train_var<-train_val %>% select(-one_of(exc))
+test_var<-test%>%select(-one_of(exc))
+
+#we want to filter out variables that have na's (maybe try imputing later)
+na_count_train <-sapply(train_var, function(y) sum(length(which(is.na(y)))))
+na_count_test<-sapply(test_var, function(y) sum(length(which(is.na(y)))))
+
+na_count<-data.frame(rowname=names(na_count_train),train_count=na_count_train
+                     ,test_count=na_count_test)
+na_count<-na_count %>% mutate(na_count_total=rowSums(na_count[,2:3]))
+na_columns<- na_count %>% filter(na_count_total>0) %>% select(rowname)
+na_columns<-as.vector(na_columns[,1])
+train_na<-train_var %>% select(-one_of(na_columns))
+test_na<-test_var %>% select(-one_of(na_columns))
+
+intrain<-createDataPartition(y=train_na$classe, p=0.7, list=FALSE)
+train<-train_na[intrain,]
+val<-train_na[-intrain,]
+test<-test_na
+```
+
+##Boosted Decision Tree
+A boosted decision tree was chosen to model exercise quality.  Its predictions proved to be so accurate on the validation data set that no further exploration was required.
+```{r cache=TRUE}
+dtree<-train(classe~., method="gbm", data=train, verbose=FALSE)
+```
+
+##Results
+The results of this model were then assessed using a confusion matrix
+```{r}
+#analyzing predictions--bosted trees
+gbm_pred_train<-predict(dtree, train[,-54])
+gbm_pred_val<-predict(dtree, newdata=val[,-54])
+gbm_pred_test<-predict(dtree, newdata=test[,-54])
+gbm_matrix_train<-confusionMatrix(gbm_pred_train, train$classe)
+gbm_matrix_val<-confusionMatrix(gbm_pred_val, val$classe)
+```
+The in sample error estimate proved to be 99.42%
+```{r}
+gbm_matrix_train$table
+gbm_matrix_train$overall[1]
+```
+
+The out of sample error was only slightly less at 99.17%
+```{r}
+gbm_matrix_val$table
+gbm_matrix_val$overall[1]
+```
+The resulting prediction from this model were
+```{r}
+gbm_pred_test
+```
