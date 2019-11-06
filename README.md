@@ -1,2 +1,2 @@
-# practicalmachinelearning
-final project
+# Analysis of Lifting Quality
+This repository contains source code for the analysis of lifting quality based on information gathered by various sensor placed on participants and their exercise equipment.  Paritipants were aske to complete the exercises in 5 different ways one of which was correct.  A supervisor was present to confirm they performed the exercises acording to the specifications.  This code tries to seperate the correctly performed exercises from the incorrect.
